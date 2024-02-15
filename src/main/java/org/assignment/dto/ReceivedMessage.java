@@ -2,14 +2,14 @@ package org.assignment.dto;
 
 import java.time.LocalDateTime;
 
-public class RecievedMessage {
+public class ReceivedMessage {
     private String senderUserId;
 
     private LocalDateTime dateTime;
 
     private String messageBody;
 
-    public RecievedMessage(String senderUserId, LocalDateTime dateTime, String messageBody) {
+    public ReceivedMessage(String senderUserId, LocalDateTime dateTime, String messageBody) {
         this.senderUserId = senderUserId;
         this.dateTime = dateTime;
         this.messageBody = messageBody;

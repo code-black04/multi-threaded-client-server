@@ -1,13 +1,20 @@
 package org.assignment.server;
 
-import org.assignment.dto.RecievedMessage;
+import org.assignment.dto.ReceivedMessage;
 
+import javax.crypto.*;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.security.*;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.time.LocalDateTime;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -15,9 +22,9 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 class ClientHandler implements Runnable {
 
     private final Socket socket;
-    private Map<String, Queue<RecievedMessage>> messageQueue = null;
+    private Map<String, Queue<ReceivedMessage>> messageQueue = null;
 
-    public ClientHandler(Socket socket,  Map<String, Queue<RecievedMessage>> messageQueue) {
+    public ClientHandler(Socket socket,  Map<String, Queue<ReceivedMessage>> messageQueue) {
         this.messageQueue = messageQueue ;
         this.socket = socket;
         System.out.println("Client Handler created: " + this);
@@ -47,31 +54,6 @@ class ClientHandler implements Runnable {
         }
     }
 
-    private void processGetMessage(DataInputStream dataInputStream, String senderUserId, DataOutputStream dataOutputStream) throws IOException {
-        try {
-            System.out.println("process message sender user id: " + senderUserId);
-            Queue<RecievedMessage> recievedMessageQueue = getMessages(senderUserId);
-
-            StringBuilder stringBuilder = new StringBuilder();
-
-            if (recievedMessageQueue != null && !recievedMessageQueue.isEmpty()) {
-                stringBuilder.append("There are " + recievedMessageQueue.size() + " message(s) for you.\n");
-                recievedMessageQueue.forEach(messageReceived -> {
-                    stringBuilder.append("From User: " +messageReceived.getSenderUserId() + "\n");
-                    stringBuilder.append("Date: " + messageReceived.getDateTime() + "\n");
-                    stringBuilder.append("Message: " + messageReceived.getMessageBody()+ "\n\n");
-                });
-            } else {
-                stringBuilder.append("There are 0 message(s) for you.\n");
-            }
-            dataOutputStream.writeUTF(stringBuilder.toString());
-        } finally {
-            socket.close();
-            dataInputStream.close();
-            dataOutputStream.close();
-        }
-    }
-
     private void processSendMessage(DataInputStream dataInputStream, String senderUserId, DataOutputStream dataOutputStream) throws IOException {
         String message;
         String recipientUserId = dataInputStream.readUTF();
@@ -80,13 +62,16 @@ class ClientHandler implements Runnable {
         try {
             while ((message = dataInputStream.readUTF()) != null) {
                 System.out.println("Message received from " + senderUserId + " is " + message);
-                RecievedMessage recievedMessage = new RecievedMessage(senderUserId, LocalDateTime.now(), message);
+                ReceivedMessage receivedMessage = new ReceivedMessage(senderUserId, LocalDateTime.now(), message);
                 dataOutputStream.writeUTF("Server Received " + message);
-                addMessage(recipientUserId, recievedMessage);
+                addMessageToServersMessageQueue(recipientUserId, receivedMessage);
                 System.out.println("Message : " + message);
             }
         } catch (IOException e) {
             System.err.println("Client closed its connection.");
+        } catch (NoSuchPaddingException | IllegalBlockSizeException | NoSuchAlgorithmException |
+                 InvalidKeySpecException | InvalidKeyException | BadPaddingException e) {
+            throw new RuntimeException(e);
         } finally {
             socket.close();
             dataInputStream.close();
@@ -94,14 +79,41 @@ class ClientHandler implements Runnable {
         }
     }
 
-    private synchronized void addMessage(String recipientUserId, RecievedMessage recievedMessage) {
+    private synchronized void addMessageToServersMessageQueue(String recipientUserId, ReceivedMessage receivedMessage) throws NoSuchPaddingException, NoSuchAlgorithmException, IOException, InvalidKeySpecException, IllegalBlockSizeException, BadPaddingException, InvalidKeyException {
         messageQueue.putIfAbsent(recipientUserId, new ConcurrentLinkedQueue<>());
-        messageQueue.get(recipientUserId).add(recievedMessage);
+        messageQueue.get(recipientUserId).add(receivedMessage);
     }
 
-    public synchronized Queue<RecievedMessage> getMessages(String senderUserId) {
-        Queue<RecievedMessage> recievedMessages = messageQueue.getOrDefault(senderUserId, new ConcurrentLinkedQueue<>());
+    private void processGetMessage(DataInputStream dataInputStream, String senderUserId, DataOutputStream dataOutputStream) throws IOException {
+        try {
+            System.out.println("process message sender user id: " + senderUserId);
+            Queue<ReceivedMessage> receivedMessageQueue = getMessageFromServersMessageQueue(senderUserId);
+            StringBuilder stringBuilder = new StringBuilder();
+            displayMessageSummaryToClient(receivedMessageQueue, stringBuilder);
+            dataOutputStream.writeUTF(stringBuilder.toString());
+        } finally {
+            socket.close();
+            dataInputStream.close();
+            dataOutputStream.close();
+        }
+    }
+
+    private static void displayMessageSummaryToClient(Queue<ReceivedMessage> receivedMessageQueue, StringBuilder stringBuilder) {
+        if (receivedMessageQueue != null && !receivedMessageQueue.isEmpty()) {
+            stringBuilder.append("There are " + receivedMessageQueue.size() + " message(s) for you.\n");
+            receivedMessageQueue.forEach(messageReceived -> {
+                stringBuilder.append("From User: " +messageReceived.getSenderUserId() + "\n");
+                stringBuilder.append("Date: " + messageReceived.getDateTime() + "\n");
+                stringBuilder.append("Message: " + messageReceived.getMessageBody()+ "\n\n");
+            });
+        } else {
+            stringBuilder.append("There are 0 message(s) for you.\n");
+        }
+    }
+
+    public synchronized Queue<ReceivedMessage> getMessageFromServersMessageQueue(String senderUserId) {
+        Queue<ReceivedMessage> receivedMessages = messageQueue.getOrDefault(senderUserId, new ConcurrentLinkedQueue<>());
         messageQueue.remove(senderUserId);
-        return recievedMessages;
+        return receivedMessages;
     }
 }
