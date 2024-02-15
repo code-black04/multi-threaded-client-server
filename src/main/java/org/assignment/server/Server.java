@@ -1,7 +1,6 @@
 package org.assignment.server;
 
 import org.assignment.dto.ReceivedMessage;
-
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;

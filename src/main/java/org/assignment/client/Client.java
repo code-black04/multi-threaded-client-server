@@ -1,23 +1,19 @@
 package org.assignment.client;
 
 import org.assignment.dto.Message;
-
 import javax.crypto.BadPaddingException;
-import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-import java.io.*;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.net.Socket;
 import java.net.UnknownHostException;
-import java.nio.file.Files;
 import java.security.InvalidKeyException;
-import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
-import java.security.PublicKey;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Scanner;
-
-import static org.assignment.utils.Utils.callCloseSockets;
+import static org.assignment.utils.CommonUtils.callCloseSocketAndStreams;
 
 public class Client {
 
@@ -101,18 +97,18 @@ public class Client {
             Socket s = new Socket(hostName, Integer.parseInt(severPort));
 
             DataInputStream dataInputStream = new DataInputStream(s.getInputStream());
-            DataOutputStream dos = new DataOutputStream(s.getOutputStream());
+            DataOutputStream dataOutputStream = new DataOutputStream(s.getOutputStream());
 
-            dos.writeUTF(message.getSenderUserId());
-            dos.writeUTF(message.getMessageType());
-            dos.writeUTF(message.getRecipientUserId());
-            dos.writeUTF(message.getMessageBody());
+            dataOutputStream.writeUTF(message.getSenderUserId());
+            dataOutputStream.writeUTF(message.getMessageType());
+            dataOutputStream.writeUTF(message.getRecipientUserId());
+            dataOutputStream.writeUTF(message.getMessageBody());
 
             System.out.println("Connected server");
             String serverResponse = dataInputStream.readUTF();
             System.out.println("Server response: " + serverResponse);
 
-            callCloseSockets(s, dataInputStream, dos);
+            callCloseSocketAndStreams(dataInputStream, dataOutputStream, s);
         } catch (Exception e) {
             System.err.println("Cannot connect to server.");
             e.printStackTrace();
@@ -134,7 +130,7 @@ public class Client {
             String serverResponse = dataInputStream.readUTF();
             System.out.println("Server response: " + serverResponse);
 
-            callCloseSockets(s, dataInputStream, dataOutputStream);
+            callCloseSocketAndStreams(dataInputStream, dataOutputStream, s);
 
         } catch (Exception e) {
             System.err.println("Cannot connect to server.");
