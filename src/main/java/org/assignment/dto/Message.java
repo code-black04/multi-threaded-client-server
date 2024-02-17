@@ -6,11 +6,11 @@ public class Message {
 
     private String recipientUserId;
 
-    private String messageBody;
+    private byte[] messageBody;
 
     private String messageType;
 
-    public Message(String senderUserId, String recipientUserId, String messageBody, String messageType) {
+    public Message(String senderUserId, String recipientUserId, byte[] messageBody, String messageType) {
         this.senderUserId = senderUserId;
         this.recipientUserId = recipientUserId;
         this.messageBody = messageBody;
@@ -33,11 +33,11 @@ public class Message {
         this.recipientUserId = recipientUserId;
     }
 
-    public String getMessageBody() {
+    public byte[] getMessageBody() {
         return messageBody;
     }
 
-    public void setMessageBody(String messageBody) {
+    public void setMessageBody(byte[] messageBody) {
         this.messageBody = messageBody;
     }
 

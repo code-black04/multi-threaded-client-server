@@ -7,9 +7,9 @@ public class ReceivedMessage {
 
     private LocalDateTime dateTime;
 
-    private String messageBody;
+    private byte[] messageBody;
 
-    public ReceivedMessage(String senderUserId, LocalDateTime dateTime, String messageBody) {
+    public ReceivedMessage(String senderUserId, LocalDateTime dateTime, byte[] messageBody) {
         this.senderUserId = senderUserId;
         this.dateTime = dateTime;
         this.messageBody = messageBody;
@@ -31,11 +31,11 @@ public class ReceivedMessage {
         this.dateTime = dateTime;
     }
 
-    public String getMessageBody() {
+    public byte[] getMessageBody() {
         return messageBody;
     }
 
-    public void setMessageBody(String messageBody) {
+    public void setMessageBody(byte[] messageBody) {
         this.messageBody = messageBody;
     }
 }

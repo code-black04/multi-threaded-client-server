@@ -1,21 +1,27 @@
 package org.assignment.server;
 
 import org.assignment.dto.ReceivedMessage;
+import org.assignment.rsa.RSAUtils;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
+import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+
+import static org.assignment.utils.CommonUtils.byteStreamToHandleString;
 
 class ClientHandler implements Runnable {
 
@@ -25,7 +31,7 @@ class ClientHandler implements Runnable {
     public ClientHandler(Socket socket,  Map<String, Queue<ReceivedMessage>> messageQueue) {
         this.messageQueue = messageQueue ;
         this.socket = socket;
-        System.out.println("Client Handler created: " + this);
+
     }
 
 
@@ -36,6 +42,7 @@ class ClientHandler implements Runnable {
 
     public void handleClient() throws RuntimeException{
         try {
+            System.out.println("Messages is sever " + messageQueue.size());
             DataInputStream dataInputStream = new DataInputStream(socket.getInputStream());
             DataOutputStream dataOutputStream = new DataOutputStream(socket.getOutputStream());
 
@@ -55,12 +62,16 @@ class ClientHandler implements Runnable {
     private void processSendMessage(DataInputStream dataInputStream, String senderUserId, DataOutputStream dataOutputStream) throws IOException {
         String message;
         String recipientUserId = dataInputStream.readUTF();
-        System.out.println("Reciever : " + recipientUserId);
+        System.out.println("RECIPIENT USER ID : " + recipientUserId);
+
+        byte[] allData = byteStreamToHandleString(dataInputStream);
 
         try {
-            while ((message = dataInputStream.readUTF()) != null) {
-                System.out.println("Message received from " + senderUserId + " is " + message);
-                ReceivedMessage receivedMessage = new ReceivedMessage(senderUserId, LocalDateTime.now(), message);
+            while (allData !=  null) {
+                System.out.println("MESSAGE BEFORE DECRYPTING BY SERVER: " + allData);
+                message = RSAUtils.decryptMessageWithPrivate(allData, "server");
+                System.out.println("MESSAGE AFTER DECRYPTING BY SERVER: " + message);
+                ReceivedMessage receivedMessage = new ReceivedMessage(senderUserId, LocalDateTime.now(), RSAUtils.encryptMessageWithPublicKey(message, recipientUserId));
                 dataOutputStream.writeUTF("Server Received " + message);
                 addMessageToServersMessageQueue(recipientUserId, receivedMessage);
                 System.out.println("Message : " + message);
@@ -87,8 +98,13 @@ class ClientHandler implements Runnable {
             System.out.println("process message sender user id: " + senderUserId);
             Queue<ReceivedMessage> receivedMessageQueue = getMessageFromServersMessageQueue(senderUserId);
             StringBuilder stringBuilder = new StringBuilder();
-            displayMessageSummaryToClient(receivedMessageQueue, stringBuilder);
-            dataOutputStream.writeUTF(stringBuilder.toString());
+            displayMessageSummaryToClient(receivedMessageQueue, stringBuilder, senderUserId);
+            System.out.println("String builder before encryption : "+ stringBuilder);
+            dataOutputStream.write(RSAUtils.encryptMessageWithPublicKey(stringBuilder.toString(), senderUserId));
+            System.out.println("String builder after encryption : "+ stringBuilder);
+        } catch (NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | NoSuchAlgorithmException |
+                 BadPaddingException | InvalidKeySpecException e) {
+            throw new RuntimeException(e);
         } finally {
             socket.close();
             dataInputStream.close();
@@ -96,13 +112,19 @@ class ClientHandler implements Runnable {
         }
     }
 
-    private static void displayMessageSummaryToClient(Queue<ReceivedMessage> receivedMessageQueue, StringBuilder stringBuilder) {
+    private static void displayMessageSummaryToClient(Queue<ReceivedMessage> receivedMessageQueue, StringBuilder stringBuilder, String recipientUserId) {
         if (receivedMessageQueue != null && !receivedMessageQueue.isEmpty()) {
+
             stringBuilder.append("There are " + receivedMessageQueue.size() + " message(s) for you.\n");
             receivedMessageQueue.forEach(messageReceived -> {
                 stringBuilder.append("From User: " +messageReceived.getSenderUserId() + "\n");
                 stringBuilder.append("Date: " + messageReceived.getDateTime() + "\n");
-                stringBuilder.append("Message: " + messageReceived.getMessageBody()+ "\n\n");
+                try {
+                    stringBuilder.append("Message: " + RSAUtils.decryptMessageWithPrivate(messageReceived.getMessageBody(), recipientUserId)+ "\n\n");
+                } catch (IOException | BadPaddingException | IllegalBlockSizeException | InvalidKeyException |
+                         NoSuchPaddingException | InvalidKeySpecException | NoSuchAlgorithmException e) {
+                    throw new RuntimeException(e);
+                }
             });
         } else {
             stringBuilder.append("There are 0 message(s) for you.\n");
@@ -110,7 +132,10 @@ class ClientHandler implements Runnable {
     }
 
     public synchronized Queue<ReceivedMessage> getMessageFromServersMessageQueue(String senderUserId) {
+        System.out.println("GET : " + messageQueue.size());
         Queue<ReceivedMessage> receivedMessages = messageQueue.getOrDefault(senderUserId, new ConcurrentLinkedQueue<>());
+        System.out.println("Received message queue size " + receivedMessages.size());
+        System.out.println(receivedMessages.size());
         messageQueue.remove(senderUserId);
         return receivedMessages;
     }

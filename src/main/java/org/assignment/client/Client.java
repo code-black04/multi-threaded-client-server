@@ -1,18 +1,24 @@
 package org.assignment.client;
 
 import org.assignment.dto.Message;
+import org.assignment.rsa.RSAUtils;
+
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
+import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Scanner;
+
+import static org.assignment.utils.CommonUtils.byteStreamToHandleString;
 import static org.assignment.utils.CommonUtils.callCloseSocketAndStreams;
 
 public class Client {
@@ -31,6 +37,12 @@ public class Client {
 
 
     public static void main(String[] args) {
+
+        if (args.length != 3) {
+            System.err.println("Client UserId has not been passed");
+            System.exit(-1);
+        }
+
         String host = args[0];
         String port = args[1];
         String senderUserId = args[2];
@@ -43,11 +55,11 @@ public class Client {
         Thread thread = new Thread(new Runnable() {
             @Override
             public void run() {
-                getMessage(new Message(senderUserId, null, null, "get-message"));
+                getMessageFromServer(new Message(senderUserId, null, null, "get-message"));
                 while (true) {
                     Scanner scanner = new Scanner(System.in);
                     System.out.println("Do you want to send a message? [y/n]: ");
-                    String actionSelection = scanner.next();
+                    String actionSelection = scanner.nextLine();
                     try {
                         createMessageInputsAndSend(actionSelection, scanner);
                     } catch (IOException | InvalidKeySpecException | NoSuchPaddingException | InvalidKeyException |
@@ -64,10 +76,10 @@ public class Client {
     private void createMessageInputsAndSend(String actionSelection, Scanner scanner) throws IOException, InvalidKeySpecException, NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
         if (actionSelection.equalsIgnoreCase("y")) {
             System.out.println("Enter the recipient userid: ");
-            String recipientUserId = scanner.next();
+            String recipientUserId = scanner.nextLine();
 
             System.out.println("Enter your message: ");
-            String message = scanner.next();
+            String message = scanner.nextLine();
 
             System.out.println("Message sent: " + message);
             sendMessageWithRecipientUserId(message, recipientUserId);
@@ -79,18 +91,21 @@ public class Client {
     private void sendMessageWithRecipientUserId(String message, String recipientUserId) {
         if (message != null) {
             try {
-                sendMessage(new Message(senderUserId, recipientUserId, message, "send-message"));
-            } catch (UnknownHostException e) {
+                System.out.println("CLIENT ENCRYPTION BEFORE SENDING MESSAGE TO SERVER: " + message);
+                byte[] encryptedMessageBytes = RSAUtils.encryptMessageWithPublicKey(message, "server");
+                System.out.println("CLIENT ENCRYPTION BEFORE SENDING MESSAGE TO SERVER: " + new String(encryptedMessageBytes));
+                sendMessageToServer(new Message(senderUserId, recipientUserId, encryptedMessageBytes, "send-message"));
+            } catch (NoSuchPaddingException | IllegalBlockSizeException | IOException | NoSuchAlgorithmException |
+                     InvalidKeySpecException | BadPaddingException | InvalidKeyException e) {
                 throw new RuntimeException(e);
             }
         } else
             System.out.println("No message found to be sent");
     }
 
-    public void sendMessage(Message message) throws UnknownHostException {
+    public void sendMessageToServer(Message message) throws UnknownHostException {
         System.out.println("Server host: " + hostName);
         System.out.println("Server Port: " + severPort);
-
         System.out.println("User Id: " + senderUserId);
 
         try {
@@ -102,11 +117,9 @@ public class Client {
             dataOutputStream.writeUTF(message.getSenderUserId());
             dataOutputStream.writeUTF(message.getMessageType());
             dataOutputStream.writeUTF(message.getRecipientUserId());
-            dataOutputStream.writeUTF(message.getMessageBody());
+            dataOutputStream.write(message.getMessageBody());
 
             System.out.println("Connected server");
-            String serverResponse = dataInputStream.readUTF();
-            System.out.println("Server response: " + serverResponse);
 
             callCloseSocketAndStreams(dataInputStream, dataOutputStream, s);
         } catch (Exception e) {
@@ -115,7 +128,7 @@ public class Client {
         }
     }
 
-    public void getMessage(Message message) {
+    public void getMessageFromServer(Message message) {
         try {
             Socket s = new Socket(hostName, Integer.parseInt(severPort));
 
@@ -124,10 +137,11 @@ public class Client {
 
             dataOutputStream.writeUTF(message.getSenderUserId());
             dataOutputStream.writeUTF(message.getMessageType());
-
             System.out.println("Connected server");
 
-            String serverResponse = dataInputStream.readUTF();
+            byte[] allData = byteStreamToHandleString(dataInputStream);
+
+            String serverResponse = RSAUtils.decryptMessageWithPrivate(allData, senderUserId);
             System.out.println("Server response: " + serverResponse);
 
             callCloseSocketAndStreams(dataInputStream, dataOutputStream, s);
