@@ -6,33 +6,30 @@ import org.assignment.rsa.RSAUtils;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
-import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.time.LocalDateTime;
-import java.util.Arrays;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-import static org.assignment.utils.CommonUtils.byteStreamToHandleString;
 import static org.assignment.utils.CommonUtils.generateMD5Hash;
 
 class ClientHandler implements Runnable {
 
+    public static final String SEND_MESSAGE_TYPE = "send-message";
+    public static final String GET_MESSAGE_TYPE = "get-message";
     private final Socket socket;
     private Map<String, Queue<ReceivedMessage>> messageQueue = null;
 
     public ClientHandler(Socket socket,  Map<String, Queue<ReceivedMessage>> messageQueue) {
         this.messageQueue = messageQueue ;
         this.socket = socket;
-
     }
 
 
@@ -44,46 +41,46 @@ class ClientHandler implements Runnable {
     public void handleClient() throws RuntimeException{
         try {
             System.out.println("Messages in server " + messageQueue.size());
-            DataInputStream dataInputStream = new DataInputStream(socket.getInputStream());
-            DataOutputStream dataOutputStream = new DataOutputStream(socket.getOutputStream());
+            DataInputStream dis = new DataInputStream(socket.getInputStream());
+            DataOutputStream dos = new DataOutputStream(socket.getOutputStream());
 
-            String senderUserId = dataInputStream.readUTF();
-            String messageType = dataInputStream.readUTF();
+            String clientUserId = dis.readUTF();
+            String messageType = dis.readUTF();
             System.out.println("Message type: " + messageType);
-            if (messageType.equals("send-message")) {
+            if (messageType.equals(SEND_MESSAGE_TYPE)) {
                 try {
-                    processSendMessage(dataInputStream, senderUserId, dataOutputStream);
+                    processMessageFromClient(dis, clientUserId, dos);
                 } catch (NoSuchPaddingException | InvalidKeyException | BadPaddingException | InvalidKeySpecException |
                          NoSuchAlgorithmException | IllegalBlockSizeException e) {
                     throw new RuntimeException(e);
                 }
-            } else if (messageType.equals("get-message")) {
-                processGetMessage(dataInputStream, senderUserId, dataOutputStream);
+            } else if (messageType.equals(GET_MESSAGE_TYPE)) {
+                fetchClientMessage(dis, clientUserId, dos);
             }
         } catch (IOException ioException) {
             ioException.printStackTrace();
         }
     }
 
-    private void processSendMessage(DataInputStream dataInputStream, String senderUserId, DataOutputStream dataOutputStream) throws IOException, NoSuchPaddingException, IllegalBlockSizeException, NoSuchAlgorithmException, InvalidKeySpecException, BadPaddingException, InvalidKeyException {
+    private void processMessageFromClient(DataInputStream dis, String clientUserId, DataOutputStream dos) throws IOException, NoSuchPaddingException, IllegalBlockSizeException, NoSuchAlgorithmException, InvalidKeySpecException, BadPaddingException, InvalidKeyException {
         String message;
-        int recipientUserIdLength = dataInputStream.readInt();
+        int recipientUserIdLength = dis.readInt();
 
         byte[] recipientUserIdByte = new byte[recipientUserIdLength];
-        dataInputStream.readFully(recipientUserIdByte);
+        dis.readFully(recipientUserIdByte);
 
         String recipientUserId = RSAUtils.decryptMessageWithPrivate(recipientUserIdByte, "server");
 
-        int messageLength = dataInputStream.readInt();
+        int messageLength = dis.readInt();
         byte[] allEncryptedMessageData = new byte[messageLength];
-        dataInputStream.readFully(allEncryptedMessageData);
+        dis.readFully(allEncryptedMessageData);
 
         try {
             while (allEncryptedMessageData !=  null) {
                 message = RSAUtils.decryptMessageWithPrivate(allEncryptedMessageData, "server");
-                ReceivedMessage receivedMessage = new ReceivedMessage(senderUserId, LocalDateTime.now(), RSAUtils.encryptMessageWithPublicKey(message, recipientUserId));
-                dataOutputStream.writeUTF("Server Received " + message);
-                addMessageToServersMessageQueue(recipientUserId, receivedMessage);
+                ReceivedMessage receivedMessage = new ReceivedMessage(clientUserId, LocalDateTime.now(), RSAUtils.encryptMessageWithPublicKey(message, recipientUserId));
+                dos.writeUTF("Server Received " + message);
+                addMessageToQueue(recipientUserId, receivedMessage);
             }
         } catch (IOException e) {
             System.err.println("Client closed its connection.");
@@ -92,32 +89,32 @@ class ClientHandler implements Runnable {
             throw new RuntimeException(e);
         } finally {
             socket.close();
-            dataInputStream.close();
-            dataOutputStream.close();
+            dis.close();
+            dos.close();
         }
     }
 
-    private synchronized void addMessageToServersMessageQueue(String recipientUserId, ReceivedMessage receivedMessage) throws NoSuchPaddingException, NoSuchAlgorithmException, IOException, InvalidKeySpecException, IllegalBlockSizeException, BadPaddingException, InvalidKeyException {
+    private synchronized void addMessageToQueue(String recipientUserId, ReceivedMessage receivedMessage) throws NoSuchPaddingException, NoSuchAlgorithmException, IOException, InvalidKeySpecException, IllegalBlockSizeException, BadPaddingException, InvalidKeyException {
         recipientUserId = generateMD5Hash(recipientUserId);
         messageQueue.putIfAbsent(recipientUserId, new ConcurrentLinkedQueue<>());
         messageQueue.get(recipientUserId).add(receivedMessage);
     }
 
-    private void processGetMessage(DataInputStream dataInputStream, String senderUserId, DataOutputStream dataOutputStream) throws IOException {
+    private void fetchClientMessage(DataInputStream dis, String clientUserId, DataOutputStream dos) throws IOException {
         try {
-            Queue<ReceivedMessage> receivedMessageQueue = getMessageFromServersMessageQueue(senderUserId);
-            StringBuilder stringBuilder = new StringBuilder();
-            displayMessageSummaryToClient(receivedMessageQueue, stringBuilder, senderUserId);
-            byte[] encryptedMessageByte = RSAUtils.encryptMessageWithPublicKey(stringBuilder.toString(), senderUserId);
-            dataOutputStream.writeInt(encryptedMessageByte.length);
-            dataOutputStream.write(encryptedMessageByte);
+            Queue<ReceivedMessage> receivedMessageQueue = getClientMessagesQueue(clientUserId);
+            StringBuilder clientMessageBuilder = new StringBuilder();
+            displayMessageSummaryToClient(receivedMessageQueue, clientMessageBuilder, clientUserId);
+            byte[] encryptedMessageByte = RSAUtils.encryptMessageWithPublicKey(clientMessageBuilder.toString(), clientUserId);
+            dos.writeInt(encryptedMessageByte.length);
+            dos.write(encryptedMessageByte);
         } catch (NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | NoSuchAlgorithmException |
                  BadPaddingException | InvalidKeySpecException e) {
             throw new RuntimeException(e);
         } finally {
             socket.close();
-            dataInputStream.close();
-            dataOutputStream.close();
+            dis.close();
+            dos.close();
         }
     }
 
@@ -140,13 +137,10 @@ class ClientHandler implements Runnable {
         }
     }
 
-    public synchronized Queue<ReceivedMessage> getMessageFromServersMessageQueue(String senderUserId) {
-        System.out.println("GET : " + messageQueue.size());
-        senderUserId = generateMD5Hash(senderUserId);
-        Queue<ReceivedMessage> receivedMessages = messageQueue.getOrDefault(senderUserId, new ConcurrentLinkedQueue<>());
-        System.out.println("Received message queue size " + receivedMessages.size());
-        System.out.println(receivedMessages.size());
-        messageQueue.remove(senderUserId);
+    public synchronized Queue<ReceivedMessage> getClientMessagesQueue(String clientUserId) {
+        clientUserId = generateMD5Hash(clientUserId);
+        Queue<ReceivedMessage> receivedMessages = messageQueue.getOrDefault(clientUserId, new ConcurrentLinkedQueue<>());
+        messageQueue.remove(clientUserId);
         return receivedMessages;
     }
 }

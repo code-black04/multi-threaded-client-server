@@ -6,13 +6,11 @@ import org.assignment.rsa.RSAUtils;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
 import java.net.UnknownHostException;
-import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
@@ -34,23 +32,6 @@ public class Client {
         System.out.println("Client bean created : " + this);
     }
 
-
-
-    public static void main(String[] args) {
-
-        if (args.length != 3) {
-            System.err.println("Client UserId has not been passed");
-            System.exit(-1);
-        }
-
-        String host = args[0];
-        String port = args[1];
-        String senderUserId = args[2];
-        System.out.println("Host: " + host + " Port: " + port + " senderUserId: " + senderUserId);
-        Client client = new Client(host, port, senderUserId);
-        client.init();
-    }
-
     private void init() {
         Thread thread = new Thread(new Runnable() {
             @Override
@@ -61,7 +42,7 @@ public class Client {
                     System.out.println("Do you want to send a message? [y/n]: ");
                     String actionSelection = scanner.nextLine();
                     try {
-                        createMessageInputsAndSend(actionSelection, scanner);
+                        writeMessageDetailsAndSend(actionSelection, scanner);
                     } catch (IOException | InvalidKeySpecException | NoSuchPaddingException | InvalidKeyException |
                              NoSuchAlgorithmException | IllegalBlockSizeException | BadPaddingException e) {
                         throw new RuntimeException(e);
@@ -69,26 +50,23 @@ public class Client {
                 }
             }
         });
-
         thread.start();
     }
 
-    private void createMessageInputsAndSend(String actionSelection, Scanner scanner) throws IOException, InvalidKeySpecException, NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
+    private void writeMessageDetailsAndSend(String actionSelection, Scanner scanner) throws IOException, InvalidKeySpecException, NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
         if (actionSelection.equalsIgnoreCase("y")) {
             System.out.println("Enter the recipient userid: ");
             String recipientUserId = scanner.nextLine();
-
             System.out.println("Enter your message: ");
             String message = scanner.nextLine();
-
             System.out.println("Message sent: " + message);
-            sendMessageWithRecipientUserId(message, recipientUserId);
-        } else if (actionSelection.equalsIgnoreCase("n")){
+            sendMessage(message, recipientUserId);
+        } else if (actionSelection.equalsIgnoreCase("n")) {
             System.exit(0);
         }
     }
 
-    private void sendMessageWithRecipientUserId(String message, String recipientUserId) {
+    private void sendMessage(String message, String recipientUserId) {
         if (message != null) {
             try {
                 byte[] encryptedRecipientUserIdBytes = RSAUtils.encryptMessageWithPublicKey(recipientUserId, "server");
@@ -103,10 +81,6 @@ public class Client {
     }
 
     public void sendMessageToServer(Message message) throws UnknownHostException {
-        System.out.println("Server host: " + hostName);
-        System.out.println("Server Port: " + severPort);
-        System.out.println("User Id: " + senderUserId);
-
         try {
             Socket s = new Socket(hostName, Integer.parseInt(severPort));
 
@@ -119,8 +93,6 @@ public class Client {
             dataOutputStream.write(message.getRecipientUserId());
             dataOutputStream.writeInt(message.getMessageBody().length);
             dataOutputStream.write(message.getMessageBody());
-
-            System.out.println("Connected server");
 
             callCloseSocketAndStreams(dataInputStream, dataOutputStream, s);
         } catch (Exception e) {
@@ -138,7 +110,6 @@ public class Client {
 
             dataOutputStream.writeUTF(message.getSenderUserId());
             dataOutputStream.writeUTF(message.getMessageType());
-            System.out.println("Connected server");
             int messageLength = dataInputStream.readInt();
             byte[] allData = byteStreamToHandleString(dataInputStream, messageLength);
 
@@ -151,5 +122,20 @@ public class Client {
             System.err.println("Cannot connect to server.");
             e.printStackTrace();
         }
+    }
+
+    public static void main(String[] args) {
+
+        if (args.length != 3) {
+            System.err.println("Client UserId has not been passed");
+            System.exit(-1);
+        }
+
+        String host = args[0];
+        String port = args[1];
+        String senderUserId = args[2];
+        System.out.println("Host: " + host + " Port: " + port + " senderUserId: " + senderUserId);
+        Client client = new Client(host, port, senderUserId);
+        client.init();
     }
 }

@@ -20,7 +20,6 @@ public class Server {
     }
 
     public static void main(String[] args) {
-
         if (args.length != 1) {
             System.err.println("Server port has not been passed");
             System.exit(-1);
@@ -38,7 +37,6 @@ public class Server {
     public void startServer() throws Exception{
         System.out.println("Port : " + serverPort);
         try (ServerSocket serverSocket = new ServerSocket(Integer.parseInt(serverPort))) {
-            System.out.println("Server started on port " + serverPort);
             System.out.println("Waiting incoming connection requests : ");
             createClientHandlerForEachClient(serverSocket);
         } catch (IOException e) {
@@ -49,8 +47,7 @@ public class Server {
     private void createClientHandlerForEachClient(ServerSocket serverSocket) throws IOException {
         while (true) {
             Socket socket = serverSocket.accept(); // Accept incoming connections
-            //System.out.println("Client connected: " + socket.getInputStream());
-            // Create a new ClientHandler instance for each client connection
+            System.out.println("new client connection received....");
             Thread thread = new Thread(new ClientHandler(socket, messageQueue));
             thread.start();
         }
