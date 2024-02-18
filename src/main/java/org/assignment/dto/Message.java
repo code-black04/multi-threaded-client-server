@@ -4,13 +4,13 @@ public class Message {
 
     private String senderUserId;
 
-    private String recipientUserId;
+    private byte[] recipientUserId;
 
     private byte[] messageBody;
 
     private String messageType;
 
-    public Message(String senderUserId, String recipientUserId, byte[] messageBody, String messageType) {
+    public Message(String senderUserId, byte[] recipientUserId, byte[] messageBody, String messageType) {
         this.senderUserId = senderUserId;
         this.recipientUserId = recipientUserId;
         this.messageBody = messageBody;
@@ -25,11 +25,11 @@ public class Message {
         this.senderUserId = senderUserId;
     }
 
-    public String getRecipientUserId() {
+    public byte[] getRecipientUserId() {
         return recipientUserId;
     }
 
-    public void setRecipientUserId(String recipientUserId) {
+    public void setRecipientUserId(byte[] recipientUserId) {
         this.recipientUserId = recipientUserId;
     }
 

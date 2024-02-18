@@ -43,7 +43,7 @@ class ClientHandler implements Runnable {
 
     public void handleClient() throws RuntimeException{
         try {
-            System.out.println("Messages is server " + messageQueue.size());
+            System.out.println("Messages in server " + messageQueue.size());
             DataInputStream dataInputStream = new DataInputStream(socket.getInputStream());
             DataOutputStream dataOutputStream = new DataOutputStream(socket.getOutputStream());
 
@@ -51,7 +51,12 @@ class ClientHandler implements Runnable {
             String messageType = dataInputStream.readUTF();
             System.out.println("Message type: " + messageType);
             if (messageType.equals("send-message")) {
-                processSendMessage(dataInputStream, senderUserId, dataOutputStream);
+                try {
+                    processSendMessage(dataInputStream, senderUserId, dataOutputStream);
+                } catch (NoSuchPaddingException | InvalidKeyException | BadPaddingException | InvalidKeySpecException |
+                         NoSuchAlgorithmException | IllegalBlockSizeException e) {
+                    throw new RuntimeException(e);
+                }
             } else if (messageType.equals("get-message")) {
                 processGetMessage(dataInputStream, senderUserId, dataOutputStream);
             }
@@ -60,22 +65,25 @@ class ClientHandler implements Runnable {
         }
     }
 
-    private void processSendMessage(DataInputStream dataInputStream, String senderUserId, DataOutputStream dataOutputStream) throws IOException {
+    private void processSendMessage(DataInputStream dataInputStream, String senderUserId, DataOutputStream dataOutputStream) throws IOException, NoSuchPaddingException, IllegalBlockSizeException, NoSuchAlgorithmException, InvalidKeySpecException, BadPaddingException, InvalidKeyException {
         String message;
-        String recipientUserId = dataInputStream.readUTF();
-        System.out.println("RECIPIENT USER ID : " + recipientUserId);
+        int recipientUserIdLength = dataInputStream.readInt();
 
-        byte[] allEncryptedMessageData = byteStreamToHandleString(dataInputStream);
+        byte[] recipientUserIdByte = new byte[recipientUserIdLength];
+        dataInputStream.readFully(recipientUserIdByte);
+
+        String recipientUserId = RSAUtils.decryptMessageWithPrivate(recipientUserIdByte, "server");
+
+        int messageLength = dataInputStream.readInt();
+        byte[] allEncryptedMessageData = new byte[messageLength];
+        dataInputStream.readFully(allEncryptedMessageData);
 
         try {
             while (allEncryptedMessageData !=  null) {
-                System.out.println("MESSAGE BEFORE DECRYPTING BY SERVER: " + allEncryptedMessageData);
                 message = RSAUtils.decryptMessageWithPrivate(allEncryptedMessageData, "server");
-                System.out.println("MESSAGE AFTER DECRYPTING BY SERVER: " + message);
                 ReceivedMessage receivedMessage = new ReceivedMessage(senderUserId, LocalDateTime.now(), RSAUtils.encryptMessageWithPublicKey(message, recipientUserId));
                 dataOutputStream.writeUTF("Server Received " + message);
                 addMessageToServersMessageQueue(recipientUserId, receivedMessage);
-                System.out.println("Message : " + message);
             }
         } catch (IOException e) {
             System.err.println("Client closed its connection.");
@@ -97,13 +105,12 @@ class ClientHandler implements Runnable {
 
     private void processGetMessage(DataInputStream dataInputStream, String senderUserId, DataOutputStream dataOutputStream) throws IOException {
         try {
-            System.out.println("process message sender user id: " + senderUserId);
             Queue<ReceivedMessage> receivedMessageQueue = getMessageFromServersMessageQueue(senderUserId);
             StringBuilder stringBuilder = new StringBuilder();
             displayMessageSummaryToClient(receivedMessageQueue, stringBuilder, senderUserId);
-            System.out.println("String builder before encryption : "+ stringBuilder);
-            dataOutputStream.write(RSAUtils.encryptMessageWithPublicKey(stringBuilder.toString(), senderUserId));
-            System.out.println("String builder after encryption : "+ stringBuilder);
+            byte[] encryptedMessageByte = RSAUtils.encryptMessageWithPublicKey(stringBuilder.toString(), senderUserId);
+            dataOutputStream.writeInt(encryptedMessageByte.length);
+            dataOutputStream.write(encryptedMessageByte);
         } catch (NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | NoSuchAlgorithmException |
                  BadPaddingException | InvalidKeySpecException e) {
             throw new RuntimeException(e);

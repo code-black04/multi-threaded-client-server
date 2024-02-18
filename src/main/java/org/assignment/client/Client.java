@@ -91,10 +91,9 @@ public class Client {
     private void sendMessageWithRecipientUserId(String message, String recipientUserId) {
         if (message != null) {
             try {
-                System.out.println("CLIENT ENCRYPTION BEFORE SENDING MESSAGE TO SERVER: " + message);
+                byte[] encryptedRecipientUserIdBytes = RSAUtils.encryptMessageWithPublicKey(recipientUserId, "server");
                 byte[] encryptedMessageBytes = RSAUtils.encryptMessageWithPublicKey(message, "server");
-                System.out.println("CLIENT ENCRYPTION BEFORE SENDING MESSAGE TO SERVER: " + new String(encryptedMessageBytes));
-                sendMessageToServer(new Message(senderUserId, recipientUserId, encryptedMessageBytes, "send-message"));
+                sendMessageToServer(new Message(senderUserId, encryptedRecipientUserIdBytes, encryptedMessageBytes, "send-message"));
             } catch (NoSuchPaddingException | IllegalBlockSizeException | IOException | NoSuchAlgorithmException |
                      InvalidKeySpecException | BadPaddingException | InvalidKeyException e) {
                 throw new RuntimeException(e);
@@ -116,7 +115,9 @@ public class Client {
 
             dataOutputStream.writeUTF(message.getSenderUserId());
             dataOutputStream.writeUTF(message.getMessageType());
-            dataOutputStream.writeUTF(message.getRecipientUserId());
+            dataOutputStream.writeInt(message.getRecipientUserId().length);
+            dataOutputStream.write(message.getRecipientUserId());
+            dataOutputStream.writeInt(message.getMessageBody().length);
             dataOutputStream.write(message.getMessageBody());
 
             System.out.println("Connected server");
@@ -138,8 +139,8 @@ public class Client {
             dataOutputStream.writeUTF(message.getSenderUserId());
             dataOutputStream.writeUTF(message.getMessageType());
             System.out.println("Connected server");
-
-            byte[] allData = byteStreamToHandleString(dataInputStream);
+            int messageLength = dataInputStream.readInt();
+            byte[] allData = byteStreamToHandleString(dataInputStream, messageLength);
 
             String serverResponse = RSAUtils.decryptMessageWithPrivate(allData, senderUserId);
             System.out.println("Server response: " + serverResponse);

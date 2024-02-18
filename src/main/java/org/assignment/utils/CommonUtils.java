@@ -15,15 +15,16 @@ public class CommonUtils {
         s.close();
     }
 
-    public static byte[] byteStreamToHandleString(DataInputStream dataInputStream) throws IOException {
+    public static byte[] byteStreamToHandleString(DataInputStream dataInputStream, int length) throws IOException {
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
         int nRead;
-        byte[] data = new byte[16384]; // Temporary buffer
+        byte[] data = new byte[length]; // Temporary buffer
         while ((nRead = dataInputStream.read(data, 0, data.length)) != -1) {
             buffer.write(data, 0, nRead);
         }
         buffer.flush();
         byte[] allData = buffer.toByteArray();
+        System.out.println("ALL Data Length : " + allData.length);
         return allData;
     }
 
@@ -40,8 +41,9 @@ public class CommonUtils {
 
     public static String generateMD5Hash(String input) {
         try {
+            String appendWithPrependKey = "gfhk2024:".concat(input);
             MessageDigest md = MessageDigest.getInstance("MD5");
-            byte[] hashInBytes = md.digest(input.getBytes());
+            byte[] hashInBytes = md.digest(appendWithPrependKey.getBytes());
             return toHexString(hashInBytes);
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("MD5 hashing algorithm not found");
