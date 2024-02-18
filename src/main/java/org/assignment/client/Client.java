@@ -1,6 +1,6 @@
 package org.assignment.client;
 
-import org.assignment.dto.Message;
+import org.assignment.dto.SendMessage;
 import org.assignment.rsa.RSAUtils;
 
 import javax.crypto.BadPaddingException;
@@ -36,7 +36,7 @@ public class Client {
         Thread thread = new Thread(new Runnable() {
             @Override
             public void run() {
-                getMessageFromServer(new Message(senderUserId, null, null, "get-message"));
+                getMessageFromServer(new SendMessage(senderUserId, null, null, "get-message"));
                 while (true) {
                     Scanner scanner = new Scanner(System.in);
                     System.out.println("Do you want to send a message? [y/n]: ");
@@ -71,7 +71,7 @@ public class Client {
             try {
                 byte[] encryptedRecipientUserIdBytes = RSAUtils.encryptMessageWithPublicKey(recipientUserId, "server");
                 byte[] encryptedMessageBytes = RSAUtils.encryptMessageWithPublicKey(message, "server");
-                sendMessageToServer(new Message(senderUserId, encryptedRecipientUserIdBytes, encryptedMessageBytes, "send-message"));
+                sendMessageToServer(new SendMessage(senderUserId, encryptedRecipientUserIdBytes, encryptedMessageBytes, "send-message"));
             } catch (NoSuchPaddingException | IllegalBlockSizeException | IOException | NoSuchAlgorithmException |
                      InvalidKeySpecException | BadPaddingException | InvalidKeyException e) {
                 throw new RuntimeException(e);
@@ -80,19 +80,19 @@ public class Client {
             System.out.println("No message found to be sent");
     }
 
-    public void sendMessageToServer(Message message) throws UnknownHostException {
+    public void sendMessageToServer(SendMessage sendMessage) throws UnknownHostException {
         try {
             Socket s = new Socket(hostName, Integer.parseInt(severPort));
 
             DataInputStream dataInputStream = new DataInputStream(s.getInputStream());
             DataOutputStream dataOutputStream = new DataOutputStream(s.getOutputStream());
 
-            dataOutputStream.writeUTF(message.getSenderUserId());
-            dataOutputStream.writeUTF(message.getMessageType());
-            dataOutputStream.writeInt(message.getRecipientUserId().length);
-            dataOutputStream.write(message.getRecipientUserId());
-            dataOutputStream.writeInt(message.getMessageBody().length);
-            dataOutputStream.write(message.getMessageBody());
+            dataOutputStream.writeUTF(sendMessage.getSenderUserId());
+            dataOutputStream.writeUTF(sendMessage.getMessageType());
+            dataOutputStream.writeInt(sendMessage.getRecipientUserId().length);
+            dataOutputStream.write(sendMessage.getRecipientUserId());
+            dataOutputStream.writeInt(sendMessage.getMessageBody().length);
+            dataOutputStream.write(sendMessage.getMessageBody());
 
             callCloseSocketAndStreams(dataInputStream, dataOutputStream, s);
         } catch (Exception e) {
@@ -101,15 +101,15 @@ public class Client {
         }
     }
 
-    public void getMessageFromServer(Message message) {
+    public void getMessageFromServer(SendMessage sendMessage) {
         try {
             Socket s = new Socket(hostName, Integer.parseInt(severPort));
 
             DataInputStream dataInputStream = new DataInputStream(s.getInputStream());
             DataOutputStream dataOutputStream = new DataOutputStream(s.getOutputStream());
 
-            dataOutputStream.writeUTF(message.getSenderUserId());
-            dataOutputStream.writeUTF(message.getMessageType());
+            dataOutputStream.writeUTF(sendMessage.getSenderUserId());
+            dataOutputStream.writeUTF(sendMessage.getMessageType());
             int messageLength = dataInputStream.readInt();
             byte[] allData = byteStreamToHandleString(dataInputStream, messageLength);
 

@@ -20,14 +20,14 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 import static org.assignment.utils.CommonUtils.generateMD5Hash;
 
-class ClientHandler implements Runnable {
+class ServerClientHandler implements Runnable {
 
     public static final String SEND_MESSAGE_TYPE = "send-message";
     public static final String GET_MESSAGE_TYPE = "get-message";
     private final Socket socket;
     private Map<String, Queue<ReceivedMessage>> messageQueue = null;
 
-    public ClientHandler(Socket socket,  Map<String, Queue<ReceivedMessage>> messageQueue) {
+    public ServerClientHandler(Socket socket, Map<String, Queue<ReceivedMessage>> messageQueue) {
         this.messageQueue = messageQueue ;
         this.socket = socket;
     }

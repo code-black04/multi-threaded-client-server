@@ -1,6 +1,6 @@
 package org.assignment.dto;
 
-public class Message {
+public class SendMessage {
 
     private String senderUserId;
 
@@ -10,7 +10,7 @@ public class Message {
 
     private String messageType;
 
-    public Message(String senderUserId, byte[] recipientUserId, byte[] messageBody, String messageType) {
+    public SendMessage(String senderUserId, byte[] recipientUserId, byte[] messageBody, String messageType) {
         this.senderUserId = senderUserId;
         this.recipientUserId = recipientUserId;
         this.messageBody = messageBody;

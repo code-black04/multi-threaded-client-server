@@ -48,7 +48,7 @@ public class Server {
         while (true) {
             Socket socket = serverSocket.accept(); // Accept incoming connections
             System.out.println("new client connection received....");
-            Thread thread = new Thread(new ClientHandler(socket, messageQueue));
+            Thread thread = new Thread(new ServerClientHandler(socket, messageQueue));
             thread.start();
         }
     }
