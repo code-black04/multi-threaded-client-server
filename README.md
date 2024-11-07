@@ -1,4 +1,4 @@
-# cyber-assignment
+# client-server program with multi-threading
 
 Command Lines
 
